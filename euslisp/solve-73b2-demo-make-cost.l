@@ -10,7 +10,7 @@
               (concatenate string (subseq s 0 1)
                            (string-comp ss (subseq s 1)))))))
 
-(defun make-73b2-move-to-cost (opname scene)
+(defun make-73b2-move-to-cost (opname (scene (make-eng2-scene)))
   "73b2のspotに距離に応じたcostを自動生成する"
   (let ((73b2-spots (remove-if-not #'(lambda (s) (substringp "/eng2/7f/room73B2-" (send s :name))) (send scene :spots)))
         ret-exp)
