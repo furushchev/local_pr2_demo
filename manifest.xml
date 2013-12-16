@@ -1,0 +1,14 @@
+<package>
+  <description brief="local_pr2_demo">
+
+     local_pr2_demo
+
+  </description>
+  <author>furushchev</author>
+  <license>BSD</license>
+  <review status="unreviewed" notes=""/>
+  <url>http://ros.org/wiki/local_pr2_demo</url>
+
+</package>
+
+

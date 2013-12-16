@@ -1,0 +1,20 @@
+<launch>
+  <!-- tray detection -->
+  <include file="$(find jsk_2013_10_pr2_73b2)/launch/detect_all.launch" />
+
+  <!-- refrigerator detection -->
+  <include file="$(find detect_cans_in_fridge_201202)/launch/startup.launch" />
+
+  <!-- dust detection -->
+  <!-- <include file="$(find roseus_tutorials)/launch/tabletop-object-detector.launch" /> -->
+
+  <!-- tablet attention -->
+  <node name="room73b2_attention_tablet" pkg="roseus" type="roseus"
+        args="$(find local_pr2_demo)/euslisp/attention-tablet.l &quot;(progn (setup) (ros::exit)) &quot;"
+        output="screen" />
+
+  <!-- task compiler -->
+  <node name="room73b2_demo" pkg="roseus" type="roseus"
+        args="$(find local_pr2_demo)/euslisp/smach-sample-73b2.l &quot; (progn (unix:sleep 10) (demo)) &quot;"
+        output="screen" />
+</launch>
