@@ -85,7 +85,7 @@
 (defun wait-interpolation ()
   (if (not (boundp 'function-name))
       (ros::ros-error "this function must be used in function defined by defaction"))
-  (unwind-protect
+  (unwind-protect ;; TODO: check if exec follow let* when interrupted
        (send *ri* :wait-interpolation)
     (let* ((req (instance jsk_demo_common::IdAngleVectorSequenceWithID :init
                           :id (format nil "~A-~A" function-name angle-vector-number)))
@@ -100,7 +100,6 @@
 
 (defun send-ri-angle-vector (av &optional (time 3000))
   (angle-vector-sequence (list av) (list time)))
-
 
 
 
