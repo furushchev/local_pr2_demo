@@ -21,6 +21,7 @@
         (TRASHBOXFRONT . spot)
         (TRASHBOX . base)
         (SINKFRONT . spot)
+        (COUNTER-SIDE . spot)
         (SINK . base)
         (IHFRONT . spot)
         (IH . base)
@@ -57,6 +58,11 @@
         (TYPICALLY-AT CUP HUMAN)
         (TYPICALLY-AT DUST TABLE)
         (TYPICALLY-AT DUST TRASHBOX)
+        (PLACABLE COUNTER-SIDE)
+        (PLACABLE TABLESIDE)
+        (PLACABLE TABLEFRONT)
+        (PLACABLE SINKFRONT)
+        (PLACABLE IHFRONT)
         (ON TRAY TABLE)
         (ON DUST TABLE)
         (ON PET FRIDGE)
@@ -70,7 +76,7 @@
 ;;        (= (COST-MOVE-TO) 100)  ;; 低いと無駄な場所に行くようになる
         (= (COST-OPEN-DOOR) 1000)  ;; 低いと冷蔵庫を一時物置き場として使うようになる
         (= (COST-PASS-TO-HUMAN) 100)  ;; 低いと人に一時ものを持ってもらって、その間に違うことをするようになる
-        ,(make-73b2-move-to-cost 'MOVE-TO-COST)
+        ,(make-73b2-move-to-cost 'COST-MOVE-TO)
         ))
 
 ;;終了条件
@@ -118,8 +124,7 @@
 (send *domain* :requirements '(:typing))
 (send *domain* :types '(item spot base arm))
 (send *domain* :predicates '((AT ?SPOT - spot)
-                             (NEXT-TO ?SPOT1 - spot ?SPOT2 - spot)
-                             (PLACABLE ?OBJ - item ?AT - spot)
+                             (PLACABLE ?AT - spot)
                              (ON ?OBJ - item ?BASE - base)
                              (REACHABLE ?OBJ - base ?SPOT - spot)
                              (CLOSED)
@@ -142,7 +147,7 @@
 ;; set functions
 (send *domain* :functions '((TOTAL-COST)
                             (COST-OTHER)
-                            (COST-MOVE-TO)
+                            (COST-MOVE-TO spot1 - spot spot2 - spot)
                             (COST-OPEN-DOOR)
                             (COST-PASS-TO-HUMAN)))
 
@@ -204,18 +209,15 @@
                  :name "move-to"
                  :parameters '((?TO spot))
                  :precondition '((NOT (AT ?TO))
-                                 (exists (?AT - spot)
-                                  (AND
-                                   (AT ?AT)
-                                   (OR
-                                    (NEXT-TO ?AT ?TO)
-                                    (NEXT-TO ?TO ?AT)))
                                  (CLOSED))
-                 :effect '((AT ?TO)
+                 :effect '((forall (?AT - spot)
+                            (when (AT ?AT)
+                              (increase (TOTAL-COST) (COST-MOVE-TO ?AT ?TO))))
+                           (AT ?TO)
                            (forall (?FROM - spot)
                             (when (NOT (= ?TO ?FROM))
                               (NOT (AT ?FROM))))
-                           (increase (TOTAL-COST) (COST-MOVE-TO)))
+                           )
                  )
 
        (instance pddl-action :init
@@ -429,5 +431,5 @@
 ;;  (exec-smach-with-interrupt *sm-inspect*)
                                         ;  (smach-exec *sm-inspect*)
 
-(when (string= "__log:=" (subseq (car (last lisp::*eustop-argument*)) 0 7))
-  (ros::exit))
+;;(when (string= "__log:=" (subseq (car (last lisp::*eustop-argument*)) 0 7))
+;;  (ros::exit))

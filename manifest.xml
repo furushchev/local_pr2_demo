@@ -8,7 +8,8 @@
   <license>BSD</license>
   <review status="unreviewed" notes=""/>
   <url>http://ros.org/wiki/local_pr2_demo</url>
-
+  <depend package="pr2eus"/>
+  <depend package="jsk_demo_common"/>
 </package>
 
 

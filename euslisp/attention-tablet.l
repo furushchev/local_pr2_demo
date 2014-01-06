@@ -20,6 +20,9 @@
                         )
                       (when (memq t (mapcar #'(lambda (s) (substringp "しゃべれよ" s)) str-lst))
                         (speak-jp "しゃべるよ！"))
+                      (when (memq t (mapcar #'(lambda (s) (substringp "こんにちは" s)) str-lst))
+;;                        (speak-jp "気安く、話しかけんな。こっちは遊びじゃないんや。"))
+                        (speak-jp "やあ。"))
                     )))
 
 (defun setup ()

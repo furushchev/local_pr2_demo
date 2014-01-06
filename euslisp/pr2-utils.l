@@ -320,5 +320,37 @@
     (send *ri* :angle-vector-sequence avs tms)
     (send *ri* :wait-interpolation)
     ))
+#|
+(defun string-comp (ss s)
+  (if (string= ss s)
+      ""
+      (if (> (length ss) (length s))
+          s
+          (if (string= ss s :end2 (length ss))
+              (string-comp ss (subseq s (length ss)))
+              (concatenate string (subseq s 0 1)
+                           (string-comp ss (subseq s 1)))))))
+|#
+
+(defun string-replace-r (from to s i res)
+  (if (> (+ i (length from)) (length s))
+      (concatenate string res (subseq s i (length s)))
+      (let ((subst (subseq s i (+ i (length from)))))
+        (if (string= from subst)
+          (string-replace-r from to s (+ i (length from)) (concatenate string res to))
+          (string-replace-r from to s (1+ i) (concatenate string res (subseq subst 0 1)))
+        ))))
+
+(defun string-replace (from to s)
+  (string-replace-r from to s 0 ""))
+
+(defun string-comp (ss s)
+  (if (string= ss "\n")
+      (let ((sym (symbol-name (gensym))))
+        (print (string-replace "\\" sym s))
+        (print (concatenate string sym "n"))
+        (string-comp (concatenate string sym "n") (string-replace "\\" sym s)))
+      (string-replace ss "" s))
+  )
 
 (provide :pr2-utils)
