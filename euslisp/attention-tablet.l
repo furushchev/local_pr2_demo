@@ -10,7 +10,10 @@
                 #'(lambda (msg)
                     (let ((str-lst (send msg :texts)))
                       (format t "received: ~A~%" str-lst)
-                      (when (memq t (mapcar #'(lambda (s) (substringp "ジョージア" s)) str-lst))
+                      (when (memq t (mapcar
+                                     (substringp "コーヒー" s)
+                                     (substringp "ジョージア" s)))
+                                     str-lst))
                         (speak-jp "うけたまわりました。")
                         (ros::ros-info "Interrupting with tablet voice message...")
                         (send *ri* :cancel-all-motion)

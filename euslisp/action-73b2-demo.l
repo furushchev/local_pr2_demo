@@ -71,8 +71,8 @@
 
 (defun place-tray-table (&rest args)
   (format t "(place-tray)~%")
-  (place-tray :table-height 730
-              :go-forward 280)
+  (place-tray :table-height 820
+              :go-forward 200)
 ;;  (place-tray-manual :torso 220)
   t)
 
@@ -110,9 +110,13 @@
                          :clear-costmap t
                          :tilt-enable nil) t))
    ((string= "FRIDGEFRONT" (symbol-name to))
-    (progn (move-to-spot "/eng2/7f/room73B2-fridge-front"
-                         :clear-costmap t
-                         :tilt-enable nil) t))
+    (progn
+      (change-inflation-range 0.7)
+      (move-to-spot "/eng2/7f/room73B2-fridge-front"
+                         :clear-costmap nil
+                         :tilt-enable nil)
+      (change-inflation-range 0.4)
+      t))
    (t (return-from move-to t))
    ))
 
@@ -123,7 +127,7 @@
                 :clear-costmap t
                 :tilt-enable nil)
   (place-tray :table-height 760
-              :go-forward 280)
+              :go-forward 200)
 ;;  (place-tray-manual)
   )
 
@@ -132,7 +136,7 @@
   (move-to-spot "/eng2/7f/room73B2-sink-front0"
                 :tilt-enable t
                 :clear-costmap nil)
-  (place-tray)
+  (place-tray :table-height 820)
 ;;  (place-tray-manual :torso 200)
   )
 
@@ -170,27 +174,28 @@
   (format t "(resume-fridge)~%")
   t)
 
+(setq *use-arm* :larm)
 (defun open-door (&rest arg)
   (format t "(open-door)~%")
-  (open-fridge-door)
+  (open-fridge-door :use-arm *use-arm*)
   t)
 
 (defun close-door (&rest arg)
   (format t "(close-door)~%")
-  (close-fridge)
+  (close-fridge :use-arm *use-arm*)
   t)
 
 (defun grasp-can-fridge (&rest arg)
   (format t "(grasp-can)~%")
   (setq *type* "georgia")
-  (grasp-can)
+  (grasp-can :use-arm *use-arm*)
   t)
 
 (defun pass-to-human (&rest arg)
   (format t "(pass-to-human)~%")
   (send *ri* :go-pos-unsafe 0 0 -90)
   (send *ri* :go-pos-unsafe 1 0)
-  (hand-over :rarm :wait-shock t)
+  (hand-over *use-arm* :wait-shock t)
   t)
   
 (defun start (&rest arg)

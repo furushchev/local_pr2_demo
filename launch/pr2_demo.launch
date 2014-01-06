@@ -9,12 +9,13 @@
   <!-- <include file="$(find roseus_tutorials)/launch/tabletop-object-detector.launch" /> -->
 
   <!-- tablet attention -->
+  <!-- <include file="$(find rwt_voice_message)/launch/rwt_voice_message.launch" /> -->
   <node name="room73b2_attention_tablet" pkg="roseus" type="roseus"
-        args="$(find local_pr2_demo)/euslisp/attention-tablet.l &quot;(progn (setup) (ros::exit)) &quot;"
+        args="$(find local_pr2_demo)/euslisp/attention-tablet.l"
         output="screen" />
 
   <!-- task compiler -->
   <node name="room73b2_demo" pkg="roseus" type="roseus"
-        args="$(find local_pr2_demo)/euslisp/smach-sample-73b2.l &quot; (progn (unix:sleep 10) (demo)) &quot;"
+        args="$(find local_pr2_demo)/euslisp/smach-sample-73b2.l &quot;(progn (unix:sleep 10) (demo))&quot;"
         output="screen" />
 </launch>
