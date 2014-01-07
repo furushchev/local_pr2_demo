@@ -7,13 +7,6 @@
 (require :pr2-move "package://jsk_demo_common/euslisp/pr2-move.l")
 
 (require :test-util "test-util.l")
-#|
-(defmacro defaction (name arg-lst &rest form)
-  `(defun ,name ,arg-lst
-     (let ((function-name (string ',name))
-           (angle-vector-number -1))
-       ,@form)))
-|#
 
 (defmacro defaction (name arg-lst &rest form)
   `(defun ,name ,arg-lst
