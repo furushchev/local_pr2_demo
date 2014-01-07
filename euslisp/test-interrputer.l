@@ -10,7 +10,7 @@
 (defparameter *last-feedback* nil)
 (defparameter *current-frame* 0)
 (defparameter *msec-per-frame* 100)
-(defparameter *pausing* nil)
+(defparameter *is-mannequin* nil)
 (defparameter *avs* nil)
 (defparameter *tms* nil)
 
@@ -18,7 +18,7 @@
   (let* ((status (send msg :status))
          (goal-id (send status :goal_id))
          (feedback (send msg :feedback)))
-;;    (warn "feedback")
+    (warn "feedback: ~A~%" (length *last-feedback*))
     (push feedback *last-feedback*)
     ))
 
@@ -74,32 +74,36 @@
 |#
 
 (defun pwd (f)
-  (when (not *pausing*)
-    (ros::ros-info "not pausing")
+  (when *is-mannequin*
+    (ros::ros-info "mannequin!")
     (return-from pwd nil))
   (ros::ros-info "pwd ~A -> ~A" *current-frame* (inc *current-frame* f))
-  (if (< *current-frame* (length *last-feedback*))
-      (setq *current-frame* (length (1- *last-feedback*))))
+  (when (>= *current-frame* (length *last-feedback*))
+      (setq *current-frame* (length (1- *last-feedback*)))
+      (ros::ros-info "current-frame reset to ~A" *current-frame*))
   (send-joint_traj_feedback (elt *last-feedback* *current-frame*))
   )
 
 (defun fwd (f)
-  (when (not *pausing*)
-    (ros::ros-info "not pausing")
+  (when *is-mannequin*
+    (ros::ros-info "mannequin!")
     (return-from fwd nil))
   (ros::ros-info "fwd ~A -> ~A" *current-frame* (dec *current-frame* f))
-  (if (< *current-frame* 0)
+  (when (< *current-frame* 0)
+      (ros::ros-info "*current-frame* reset to 0")
       (setq *current-frame* 0))
   (send-joint_traj_feedback (elt *last-feedback* *current-frame*))
   )
 
 (defun wait-button ()
-  (ros::subscribe "/Tablet/button" std_msgs::UInt8
+  (ros::subscribe "/Tablet/Button" std_msgs::UInt8
                   #'(lambda (m)
+                      (ros::ros-info "pressed: ~A" (send m :data))
                       (case (send m :data)
                         (0 ;; stop
                          (progn
                            (send *ri* :cancel-all-motion)
+                           (unsubscribe-joints)
 ;;                           (nreverse *last-feedback*)
                            (ros::ros-info "feedback length: ~A" (length *last-feedback*))
                            ))
@@ -109,22 +113,25 @@
                         (2 ;; fwd
                          (fwd 1))
                         (3 ;; send
-                         (send-to-server))
+                         (progn
+                           (send-to-server)
+                           (subscribe-joints)))
                         (4 ;; pause
                          (progn
-                           (if *pausing*
+                           (if (not *is-mannequin*)
                                (send *ri* :start-mannequin-mode :rarm)
                              (progn
                                (send *ri* :stop-mannequin-mode :rarm)
                                (push (send *ri* :state :potentio-vector) *avs*)
                                (push *current-frame* *tms*)
                                ))
-                           (setq *pausing* (null *pausing*))))
+                           (setq *is-mannequin* (null *is-mannequin*))))
                         (5 ;; pwd10
                          (pwd 10))
                         (6 ;; fwd10
                          (fwd 10))
                         )))
+  (ros::ros-info "waiting button")
   (do-until-key
    (ros::spin-once)
    (ros::sleep)))
@@ -132,7 +139,7 @@
 (defun send-joint_traj_feedback (msg)
   (send *pr2* :angle-vector (send *ri* :state :potentio-vector))
   (apply-trajectory_point (send msg :joint_names)
-                          (send (send msg :actual) :positions)
+                          (send msg :actual)
                           *pr2*)
   (send *ri* :angle-vector (send *pr2* :angle-vector) 500))
 
@@ -140,7 +147,7 @@
   (let ((traj (send msg :trajectory)))
     (send *pr2* :angle-vector (send *ri* :state :potentio-vector))
     (list (apply-trajectory_point (send traj :joint_names)
-                                  (send traj :points)
+                                  (car (send traj :points))
                                   *pr2*)
           (/ (send (send (car (send traj :points)) :time_from_start) :to-nsec) 1000))
           ))
@@ -186,11 +193,19 @@
                           :data avs))))
 |#
 
+(defun subscribe-joints ()
+  (ros::subscribe "/r_arm_controller/follow_joint_trajectory/feedback_throttle" control_msgs::FollowJointTrajectoryActionFeedback #'feedback-cb)
+  (ros::subscribe "/r_arm_controller/follow_joint_trajectory/goal" control_msgs::FollowJointTrajectoryActionGoal #'goal-cb)
+  )
+
+(defun unsubscribe-joints ()
+  (ros::unsubscribe "/r_arm_controller/follow_joint_trajectory/feedback_throttle")
+  (ros::unsubscribe "/r_arm_controller/follow_joint_trajectory/goal"))
+
 (defun main ()
   (ros::rate 10)
   (ros::advertise "/modify_avs" local_pr2_demo::AngleVectorSequence)
-  (ros::subscribe "/r_arm_controller/follow_joint_trajectory/feedback_throttle" control_msgs::FollowJointTrajectoryActionFeedback #'feedback-cb)
-  (ros::subscribe "/r_arm_controller/follow_joint_trajectory/goal" control_msgs::FollowJointTrajectoryActionGoal #'goal-cb)
+  (subscribe-joints)
   (pr2-init)
   (wait-button)
 ;;  (wait-voice)
