@@ -1,5 +1,6 @@
 #!/usr/bin/env roseus
-
+(require :pr2-interface "package://pr2eus/pr2-interface.l")
+(ros::load-ros-manifest "local_pr2_demo")
 (ros::load-ros-manifest "pr2_mechanism_msgs")
 ;; original package://pr2eus_impedance/euslisp/pr2eus-impedance.l
 (defmethod robot-interface

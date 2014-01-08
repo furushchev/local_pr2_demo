@@ -10,6 +10,7 @@
   <url>http://ros.org/wiki/local_pr2_demo</url>
   <depend package="pr2eus"/>
   <depend package="jsk_demo_common"/>
+  <depend package="pr2_mechanism_msgs"/>
 </package>
 
 
