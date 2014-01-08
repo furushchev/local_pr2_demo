@@ -14,6 +14,7 @@
   (setf (gethash k *hash*) v))
 
 (defun register (msg)
+  (ros::ros-info "registered: ~A -> ~A" (send msg :id) (send msg :data))
   (seth (send msg :id) (send msg :data)))
 
 (defun service-callback (req)

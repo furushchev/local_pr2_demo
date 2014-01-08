@@ -24,6 +24,7 @@
     (ros::set-param *angle-vector-flag* id)
     (if res
         (let ((avs-tms (ros->eus (send res :data))))
+          (ros::ros-info "received: ~A" avs-tms)
           (send *ri* :angle-vector-sequence (car avs-tms) (cadr avs-tms)))
         (send *ri* :angle-vector-sequence avs tms))))
 

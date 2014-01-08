@@ -25,11 +25,11 @@
      (:head
       (send self :change-controller "head_traj_controller" "head_traj_controller_loose"))
      (:arms
-      (send self :enable-mannequin-mode :larm)
-      (send self :enable-mannequin-mode :rarm))
+      (send self :start-mannequin-mode :larm)
+      (send self :start-mannequin-mode :rarm))
      (t
-      (send self :enable-mannequin-mode :arms)
-      (send self :enable-mannequin-mode :head))))
+      (send self :start-mannequin-mode :arms)
+      (send self :start-mannequin-mode :head))))
   (:stop-mannequin-mode (&optional controller)
    (case controller
      (:rarm
@@ -39,11 +39,11 @@
      (:head
       (send self :change-controller "head_traj_controller_loose" "head_traj_controller"))
      (:arms
-      (send self :disable-mannequin-mode :larm)
-      (send self :disable-mannequin-mode :rarm))
+      (send self :stop-mannequin-mode :larm)
+      (send self :stop-mannequin-mode :rarm))
      (t
-      (send self :disable-mannequin-mode :arms)
-      (send self :disable-mannequin-mode :head))))
+      (send self :stop-mannequin-mode :arms)
+      (send self :stop-mannequin-mode :head))))
 
   ) ;; defmethod robot-interface
 
