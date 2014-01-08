@@ -1,0 +1,14 @@
+<launch>
+  <group ns="/r_arm_controller/follow_joint_trajectory">
+    <node name="throttle" pkg="topic_tools" type="throttle"
+          args="messages feedback 10.0" />
+  </group>
+  <group ns="/l_arm_controller/follow_joint_trajectory">
+    <node name="throttle" pkg="topic_tools" type="throttle"
+          args="messages feedback 10.0" />
+  </group>
+  <group ns="/head_traj_controller/follow_joint_trajectory">
+    <node name="throttle" pkg="topic_tools" type="throttle"
+          args="messages feedback 10.0" />
+  </group>
+</launch>
