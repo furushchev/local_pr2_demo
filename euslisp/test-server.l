@@ -1,6 +1,7 @@
 #!/usr/bin/env roseus
 (ros::roseus "test_server")
 (ros::load-ros-manifest "local_pr2_demo")
+(require :test-util "test-util.l")
 
 ;; database
 (defparameter *hash* (make-hash-table))
@@ -14,8 +15,8 @@
   (setf (gethash k *hash*) v))
 
 (defun register (msg)
-  (ros::ros-info "registered: ~A -> ~A" (send msg :id) (send msg :data))
-  (seth (send msg :id) (send msg :data)))
+  (ros::ros-info "registered: ~A -> ~A" () (send msg :data))
+  (seth (ros::get-param *angle-vector-flag*) (send msg :data)))
 
 (defun service-callback (req)
   (warn "service-callback~%")
@@ -35,6 +36,7 @@
   (ros::advertise-service "/read_avs" local_pr2_demo::AngleVectorSequenceService #'service-callback)
   (ros::subscribe "/modify_avs" local_pr2_demo::AngleVectorSequence #'register)
   (ros::rate 100)
+  (ros::ros-info "initialized")
   (when (ros::ok)
     (do-until-key
         (ros::spin-once)

@@ -12,7 +12,7 @@
 (defparameter *msec-per-frame* 100)
 (defparameter *is-mannequin* nil)
 (defparameter *avs* nil)
-(defparameter *tms* nil)
+(defparameter *counts* nil)
 
 (defun feedback-cb (msg)
   (let* ((status (send msg :status))
@@ -23,9 +23,9 @@
     ))
 
 (defun goal-cb (msg)
-  (warn "goal-cb~%")
   (let* ((goal-id (send msg :goal_id))
          (goal (send msg :goal)))
+    (ros::ros-info "goal-cb (~A)~%" (send goal-id :id))
     (setq *last-feedback* nil)
     (setq *last-goal-id* (send goal-id :id))
     (setq *last-goal* goal)))
@@ -79,7 +79,7 @@
     (return-from pwd nil))
   (ros::ros-info "pwd ~A -> ~A" *current-frame* (inc *current-frame* f))
   (when (>= *current-frame* (length *last-feedback*))
-      (setq *current-frame* (length (1- *last-feedback*)))
+      (setq *current-frame* (1- (length *last-feedback*)))
       (ros::ros-info "current-frame reset to ~A" *current-frame*))
   (send-joint_traj_feedback (elt *last-feedback* *current-frame*))
   )
@@ -116,20 +116,22 @@
                          (progn
                            (send-to-server)
                            (subscribe-joints)))
-                        (4 ;; pause
+                        (4 ;; pause/play
                          (progn
-                           (if (not *is-mannequin*)
+                           (if (not *is-mannequin*) ;; pause
                                (send *ri* :start-mannequin-mode :rarm)
-                             (progn
+                             (progn ;; play
                                (send *ri* :stop-mannequin-mode :rarm)
                                (push (send *ri* :state :potentio-vector) *avs*)
-                               (push *current-frame* *tms*)
+                               (push *current-frame* *counts*)
                                ))
                            (setq *is-mannequin* (null *is-mannequin*))))
                         (5 ;; pwd10
                          (pwd 10))
                         (6 ;; fwd10
                          (fwd 10))
+                        (7 ;; reset
+                         (pr2-reset-pose))
                         )))
   (ros::ros-info "waiting button")
   (do-until-key
@@ -146,27 +148,32 @@
 (defun apply-joint_traj_goal (msg)
   (let ((traj (send msg :trajectory)))
     (send *pr2* :angle-vector (send *ri* :state :potentio-vector))
-    (list (apply-trajectory_point (send traj :joint_names)
+    (list (send (apply-trajectory_point (send traj :joint_names)
                                   (car (send traj :points))
-                                  *pr2*)
-          (/ (send (send (car (send traj :points)) :time_from_start) :to-nsec) 1000))
+                                  *pr2*) :angle-vector)
+          (/ (send (send (car (send traj :points)) :time_from_start) :to-nsec) 1000000))
           ))
 
 (defun send-to-server ()
   (warn "send-to-server~%")
   (let (ret-goal diff-tms last-time)
     (setq ret-goal (apply-joint_traj_goal *last-goal*))
+    (warn "ret-goal: ~A~%" ret-goal)
     (push (car ret-goal) *avs*)
-    (setq last-time (- (cadr ret-goal) (* *msec-per-frame* (car *tms*))))
+    (setq last-time (- (cadr ret-goal) (* *msec-per-frame* (car *counts*))))
+    (warn "last-time: ~A~%" last-time)
     (nreverse *avs*)
-    (append *tms* (cons 0 nil))
-    (dotimes (i (1- (length *tms*)))
-      (push (* *msec-per-frame* (- (elt *tms* i) (elt *tms* (1+ i)))) diff-tms))
-    (append diff-tms (cons last-time nil))
+    (warn "*avs*: ~A~%" *avs*)
+    (setq *counts* (append *counts* (cons 0 nil)))
+    (warn "*counts*: ~A~%" *counts*)
+    (dotimes (i (1- (length *counts*)))
+      (push (* *msec-per-frame* (- (elt *counts* i) (elt *counts* (1+ i)))) diff-tms))
+    (setq diff-tms (append diff-tms (cons last-time nil)))
+    (warn "diff-tms: ~A~%" diff-tms)
     (ros::ros-info "published: ~A ~A" *avs* diff-tms)
     (ros::publish "/modify_avs"
-                (eus->ros (list *avs* diff-tms))))
-  (setq *avs* nil *tms* nil *current-frame* 0))
+                (eus->ros (list *avs* diff-tms) :id *last-goal-id*)))
+  (setq *avs* nil *counts* nil *current-frame* 0))
 
 #|
 (defun send-to-server ()

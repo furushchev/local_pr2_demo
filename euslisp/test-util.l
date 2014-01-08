@@ -68,15 +68,15 @@
       (push (send ros-av :dura) tms))
     (list (nreverse avs) (nreverse tms))))
 
-(defun eus->ros (avs-tm-lst &key (id nil))
+(defun eus->ros (avs-tms-lst &key (id nil))
   "(avs tms) -> local_pr2_demo::AngleVectorSequence"
   (let ((msg (instance local_pr2_demo::AngleVectorSequence :init
                        :id id))
         ros-av-lst)
-    (dotimes (i (length (car avs-tm-lst)))
+    (dotimes (i (length (car avs-tms-lst)))
       (push (instance local_pr2_demo::AngleVector :init
-                      :data (elt (car avs-tm-lst) i)
-                      :dura (elt (cadr avs-tm-lst) i))
+                      :data (elt (car avs-tms-lst) i)
+                      :dura (elt (cadr avs-tms-lst) i))
             ros-av-lst))
     (send msg :data (nreverse ros-av-lst))
     msg))
