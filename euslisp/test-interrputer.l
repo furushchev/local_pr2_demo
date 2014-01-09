@@ -96,7 +96,7 @@
   )
 
 (defun wait-button ()
-  (ros::subscribe "/Tablet/Button" std_msgs::UInt8
+  (ros::advertise-service "/Tablet/button" local_pr2_demo::UInt32UInt32
                   #'(lambda (m)
                       (ros::ros-info "pressed: ~A" (send m :data))
                       (case (send m :data)
