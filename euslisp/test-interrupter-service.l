@@ -13,6 +13,7 @@
 (defparameter *msec-per-frame* 100)
 (defparameter *is-mannequin* nil)
 (defparameter *modified* nil)
+(defparameter *before-pose* nil)
 
 (defun feedback-cb (msg)
   (let* ((status (send msg :status))
@@ -59,6 +60,13 @@
   (send-joint_traj_feedback (elt *last-feedback* *current-frame*))
   )
 
+(defun stop ()
+  (send *ri* :cancel-all-motion)
+  (unsubscribe-joints)
+  ;; (nreverse *last-feedback*)
+  (ros::ros-info "feedback length: ~A" (length *last-feedback*))
+  )
+
 (defun wait-button ()
   (ros::advertise-service "/Tablet/button" local_pr2_demo::Int64Int64
                           #'(lambda (req)
@@ -67,10 +75,7 @@
                                 (case (send req :data)
                                   (0 ;; stop
                                    (progn
-                                     (send *ri* :cancel-all-motion)
-                                     (unsubscribe-joints)
-                                     ;; (nreverse *last-feedback*)
-                                     (ros::ros-info "feedback length: ~A" (length *last-feedback*))
+                                     (stop)
                                      (send res :data (length *last-feedback*))
                                      ))
                                   (1 ;; pwd
@@ -89,9 +94,19 @@
                                   (4 ;; pause/play
                                    (progn
                                      (if (not *is-mannequin*) ;; pause
-                                         (send *ri* :start-mannequin-mode :rarm)
+                                         (progn
+                                           (when *goal-mode*
+                                             (send *pr2* :angle-vector (send *ri* :state :potentio-vector))
+                                             (setq *before-pose* *pr2*))
+                                           (send *ri* :start-mannequin-mode :rarm))
                                        (progn ;; play
                                          (send *ri* :stop-mannequin-mode :rarm)
+                                         (when *goal-mode* ;; goal mode
+                                           (send-to-server-goal)
+                                           (send res :data 0)
+                                           (return-from wait-button res)
+                                           )
+                                         ;; avoid mode
                                          (push (cons
                                                 (send *ri* :state :potentio-vector)
                                                 (* 1000.0 (send (send (send (elt *last-feedback* *current-frame*) :actual) :time_from_start) :to-sec)))
@@ -111,6 +126,13 @@
                                    (progn
                                      (pr2-reset-pose)
                                      (send res :data 0)))
+                                  (8 ;; toggle goal mode/ avoid mode
+                                   (progn
+                                     (setq *goal-mode* (null *goal-mode*))
+                                     (if *goal-mode*
+                                         (ros::ros-info "avoid -> goal")
+                                       (ros::ros-info "goal -> avoid"))
+                                     ))
                                   (t ;; slider
                                    (let ((diff (- (/ (send req :data) 100) *current-frame*)))
                                      (if (> diff 0)
@@ -160,6 +182,12 @@
           (nreverse tms))
     ))
 
+(defun apply-diff-pose-to-traj_goal (goal robot)
+  (warn "apply-diff-pose-to-traj_goal~%")
+  (let (diff-pose)
+    (setq diff-pose (;; TODO: *before-pose* と現在の目標手先姿勢との差分をとって、それをgoal_trajの各々に差分の分だけずらしたものを計算してserverへ送る
+                     0))))
+
 (defun send-to-server ()
   (warn "send-to-server~%")
   (let (ret-goal diff-tms last-time)
@@ -174,15 +202,56 @@
 (defparameter *joy-accum* 0.0)
 (defun joy-cb (msg)
   (let ((scratch (aref (send msg :axes) 0))
-        (gain (aref (send msg :axes) 3)))
-    (inc *joy-accum* (* scratch gain 10))
-    (when (> (floor *joy-accum*) 0)
-      (fwd 1)
-      (setq *joy-accum* 0.0))
-    (when (< (1+ (floor *joy-accum*)) 0)
-      (pwd 1)
-      (setq *joy-accum* 0.0)))
-  )
+        (gain (aref (send msg :axes) 3))
+        (play/pause-button (aref (send msg :buttons) 6))
+        (stop-button (aref (send msg :buttons) 7))
+        (reset-button (aref (send msg :buttons) 9))
+        (mode-button (aref (send msg :buttons) 10))
+        (send-button (aref (send msg :buttons) 8))
+        )
+
+    (cond
+     ((eq stop-button 1)
+      (stop))
+     ((eq send-button 1)
+      (send-to-server)
+      (subscribe-joints))
+     ((eq play/pause-button 1)
+      (if (not *is-mannequin*) ;; pause
+          (progn
+            (when *goal-mode*
+              (send *pr2* :angle-vector (send *ri* :state :potentio-vector))
+              (setq *before-pose* *pr2*))
+            (send *ri* :start-mannequin-mode :rarm))
+        (progn ;; play
+          (send *ri* :stop-mannequin-mode :rarm)
+          (when *goal-mode* ;; goal mode
+            (send-to-server-goal)
+            (return-from joy-cb t)
+            )
+          ;; avoid mode
+          (push (cons
+                 (send *ri* :state :potentio-vector)
+                 (* 1000.0 (send (send (send (elt *last-feedback* *current-frame*) :actual) :time_from_start) :to-sec)))
+                *modified*)
+          ))
+      (setq *is-mannequin* (null *is-mannequin*)))
+     ((eq reset-button 1)
+      (pr2-reset-pose))
+     ((eq mode-button 1)
+      (setq *goal-mode* (null *goal-mode*))
+      (if *goal-mode*
+          (ros::ros-info "avoid -> goal")
+        (ros::ros-info "goal -> avoid")))
+    ((not (eq scratch 0))
+     (inc *joy-accum* (* scratch gain 10))
+     (when (> (floor *joy-accum*) 0)
+       (fwd 1)
+       (setq *joy-accum* 0.0))
+     (when (< (1+ (floor *joy-accum*)) 0)
+       (pwd 1)
+       (setq *joy-accum* 0.0))))
+  ))
 
 (defun subscribe-joints ()
   (ros::subscribe "/r_arm_controller/follow_joint_trajectory/feedback_throttle" control_msgs::FollowJointTrajectoryActionFeedback #'feedback-cb)
@@ -196,7 +265,7 @@
 (defun main ()
   (ros::rate 10)
   (ros::advertise "/modify_avs" local_pr2_demo::AngleVectorSequence)
-  (ros::subscribe "/joy_pad" sensor_msgs::Joy #'joy-cb)
+  (ros::subscribe "/vestax_spin2/joy" sensor_msgs::Joy #'joy-cb)
   (subscribe-joints)
   (pr2-init)
   (wait-button)
