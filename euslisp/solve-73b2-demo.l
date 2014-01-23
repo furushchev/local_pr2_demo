@@ -1,7 +1,7 @@
 #!/usr/bin/env roseus
 
 ;;(require :eus-pddl-client "package://pddl_planner/src/eus-pddl-client.l")
-(require :eus-pddl-client "package://pddl_planner/src/eus-downward-client.l")
+(require :eus-pddl-client "package://pddl_planner/src/eus-pddl-client.l")
 (require :pddl-result-graph "package://pddl_planner/src/pddl-result-graph.l")
 (load "package://jsk_demo_common/euslisp/attention-observation.l")
 (require :solve-73b2-demo-util "solve-73b2-demo-util.l")
