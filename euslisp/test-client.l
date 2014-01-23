@@ -40,15 +40,17 @@
           can-coords
           :rotation-axis t)
     (send *pr2* arm :move-end-pos #f(-150 0 0))
-    (send-ri-angle-vector (send *pr2* :angle-vector) 20000)
+    (send-ri-angle-vector (send *pr2* :angle-vector) 3000)
     (if (memq nil (send *ri* :wait-interpolation))
         (return-from pick-can nil))
-    (send *pr2* arm :move-end-pos #f(170 0 0))
+    (send *pr2* arm :move-end-pos #f(230 0 0))
     (send-ri-angle-vector (send *pr2* :angle-vector) 10000)
     (if (memq nil (send *ri* :wait-interpolation))
         (return-from pick-can nil))
     (send *ri* :start-grasp arm)
     )
+
+
 
 ;; main loop
 (defun main ()

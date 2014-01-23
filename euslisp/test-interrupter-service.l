@@ -14,6 +14,7 @@
 (defparameter *is-mannequin* nil)
 (defparameter *modified* nil)
 (defparameter *before-pose* nil)
+(defparameter *goal-mode* nil)
 
 (defun feedback-cb (msg)
   (let* ((status (send msg :status))
@@ -31,21 +32,14 @@
     (setq *last-goal-id* (send goal-id :id))
     (setq *last-goal* goal)))
 
-(defun exec-interrupt ()
-    (send *ri* :cancel-all-motion)
-    (send *ri* :start-mannequin-mode :rarm)
-    (read-char)
-    (send-to-server)
-    )
-
 (defun pwd (f)
   (when *is-mannequin*
     (ros::ros-info "mannequin!")
     (return-from pwd nil))
+  (ros::ros-info "pwd ~A -> ~A" *current-frame* (inc *current-frame* f))
   (when (>= *current-frame* (length *last-feedback*))
       (setq *current-frame* (1- (length *last-feedback*)))
       (ros::ros-info "current-frame reset to ~A" *current-frame*))
-  (ros::ros-info "pwd ~A -> ~A" *current-frame* (inc *current-frame* f))
   (send-joint_traj_feedback (elt *last-feedback* *current-frame*))
   )
 
@@ -53,10 +47,10 @@
   (when *is-mannequin*
     (ros::ros-info "mannequin!")
     (return-from fwd nil))
+  (ros::ros-info "fwd ~A -> ~A" *current-frame* (dec *current-frame* f))
   (when (< *current-frame* 0)
       (ros::ros-info "*current-frame* reset to 0")
       (setq *current-frame* 0))
-  (ros::ros-info "fwd ~A -> ~A" *current-frame* (dec *current-frame* f))
   (send-joint_traj_feedback (elt *last-feedback* *current-frame*))
   )
 
@@ -75,7 +69,10 @@
                                 (case (send req :data)
                                   (0 ;; stop
                                    (progn
-                                     (stop)
+                                     (send *ri* :cancel-all-motion)
+                                     (unsubscribe-joints)
+                                     ;; (nreverse *last-feedback*)
+                                     (ros::ros-info "feedback length: ~A" (length *last-feedback*))
                                      (send res :data (length *last-feedback*))
                                      ))
                                   (1 ;; pwd
@@ -97,7 +94,7 @@
                                          (progn
                                            (when *goal-mode*
                                              (send *pr2* :angle-vector (send *ri* :state :potentio-vector))
-                                             (setq *before-pose* *pr2*))
+                                             (setq *before-pose* (copy-object *pr2*)))
                                            (send *ri* :start-mannequin-mode :rarm))
                                        (progn ;; play
                                          (send *ri* :stop-mannequin-mode :rarm)
@@ -182,11 +179,39 @@
           (nreverse tms))
     ))
 
-(defun apply-diff-pose-to-traj_goal (goal robot)
+;; TODO: *before-pose* と現在の目標手先姿勢との差分をとって、それをgoal_trajの各々に差分の分だけずらしたものを計算してserverへ送る
+(defun apply-diff-pose-to-traj_goal ()
   (warn "apply-diff-pose-to-traj_goal~%")
-  (let (diff-pose)
-    (setq diff-pose (;; TODO: *before-pose* と現在の目標手先姿勢との差分をとって、それをgoal_trajの各々に差分の分だけずらしたものを計算してserverへ送る
-                     0))))
+  (let ((goal-traj (traj_goal->avs *last-goal* *pr2*))
+        trans diff-cds)
+    (send *pr2* :angle-vector (send *ri* :state :potentio-vector))
+;;    (setq trans (send (send *pr2* :rarm :end-coords) :transformation (send *before-pose* :rarm :end-coords)))
+    (setq trans (send (send *before-pose* :rarm :end-coords) :transformation (send *pr2* :rarm :end-coords) *pr2*))
+    (warn "goal-traj: ~A~%" goal-traj)
+    (dolist (traj goal-traj)
+      (send *pr2* :angle-vector (car traj))
+      (setq diff-cds (send (copy-object (send *pr2* :rarm :end-coords)) :transform (copy-object trans) *pr2*))
+      (ros::ros-info "target: ~A" diff-cds)
+      (send *pr2* :rarm :inverse-kinematics
+            diff-cds
+            :rotation-axis t)
+      (setf (car traj) (send *pr2* :angle-vector)))
+    (warn "modified: ~A~%" goal-traj)
+    goal-traj
+    ))
+
+(defun send-to-server-goal ()
+  (let ((diff-goal (apply-diff-pose-to-traj_goal))
+        ret-goal)
+  (push (cons
+         (send *pr2* :angle-vector (send *ri* :state :potentio-vector))
+         (* 1000.0 (send (send (send (elt *last-feedback* *current-frame*) :actual) :time_from_start) :to-sec)))
+        diff-goal)
+  (setq ret-goal (time_from_start->tms diff-goal))
+  (ros::ros-info "publish: ~A" ret-goal)
+  (ros::publish "/modify_avs" (eus->ros ret-goal :id *last-goal-id*))
+  (setq *time-from-starts* nil *current-frame* 0)
+  ))
 
 (defun send-to-server ()
   (warn "send-to-server~%")
@@ -212,7 +237,10 @@
 
     (cond
      ((eq stop-button 1)
-      (stop))
+      (send *ri* :cancel-all-motion)
+      (unsubscribe-joints)
+      ;; (nreverse *last-feedback*)
+      (ros::ros-info "feedback length: ~A" (length *last-feedback*)))
      ((eq send-button 1)
       (send-to-server)
       (subscribe-joints))
@@ -221,7 +249,7 @@
           (progn
             (when *goal-mode*
               (send *pr2* :angle-vector (send *ri* :state :potentio-vector))
-              (setq *before-pose* *pr2*))
+              (setq *before-pose* (copy-object *pr2*)))
             (send *ri* :start-mannequin-mode :rarm))
         (progn ;; play
           (send *ri* :stop-mannequin-mode :rarm)
@@ -243,7 +271,7 @@
       (if *goal-mode*
           (ros::ros-info "avoid -> goal")
         (ros::ros-info "goal -> avoid")))
-    ((not (eq scratch 0))
+    ((> (abs scratch) 0)
      (inc *joy-accum* (* scratch gain 10))
      (when (> (floor *joy-accum*) 0)
        (fwd 1)
@@ -254,11 +282,13 @@
   ))
 
 (defun subscribe-joints ()
+  (ros::ros-info "subscribe")
   (ros::subscribe "/r_arm_controller/follow_joint_trajectory/feedback_throttle" control_msgs::FollowJointTrajectoryActionFeedback #'feedback-cb)
   (ros::subscribe "/r_arm_controller/follow_joint_trajectory/goal" control_msgs::FollowJointTrajectoryActionGoal #'goal-cb)
   )
 
 (defun unsubscribe-joints ()
+  (ros::ros-info "unsubscribe")
   (ros::unsubscribe "/r_arm_controller/follow_joint_trajectory/feedback_throttle")
   (ros::unsubscribe "/r_arm_controller/follow_joint_trajectory/goal"))
 
