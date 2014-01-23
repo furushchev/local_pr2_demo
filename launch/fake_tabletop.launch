@@ -1,0 +1,10 @@
+<launch>
+  <include file="$(find roseus_tutorials)/launch/tabletop-object-detector.launch">
+    <arg name="run_roseus" value="false" />
+    <arg name="run_rviz" value="false" />
+  </include>
+
+  <node pkg="roseus" type="roseus" name="fake_tabletop_detector"
+        output="screen"
+        args="&quot;$(find local_pr2_demo)/euslisp/fake-tabletop.l&quot;" />
+</launch>
