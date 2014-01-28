@@ -2,6 +2,7 @@
 (ros::roseus "test_interrupter")
 (ros::load-ros-manifest "local_pr2_demo")
 (ros::roseus-add-msgs "sensor_msgs")
+(ros::roseus-add-msgs "jsk_gui_msgs")
 
 (load "package://jsk_demo_common/euslisp/attention-observation.l")
 (require :test-util "test-util.l")
@@ -15,6 +16,7 @@
 (defparameter *modified* nil)
 (defparameter *before-pose* nil)
 (defparameter *goal-mode* nil)
+(defparameter *include-goal* t)
 
 (defun feedback-cb (msg)
   (let* ((status (send msg :status))
@@ -87,6 +89,8 @@
                                    (progn
                                      (send-to-server)
                                      (subscribe-joints)
+                                     (ros::publish "/Tablet/voice" (instance jsk_gui_msgs::VoiceMessage :init
+                                                                             :texts (list "waitwait")))
                                      (send res :data 0)))
                                   (4 ;; pause/play
                                    (progn
@@ -126,9 +130,28 @@
                                   (8 ;; toggle goal mode/ avoid mode
                                    (progn
                                      (setq *goal-mode* (null *goal-mode*))
-                                     (if *goal-mode*
-                                         (ros::ros-info "avoid -> goal")
-                                       (ros::ros-info "goal -> avoid"))
+                                     (when *goal-mode*
+                                       (ros::ros-info "avoid -> goal")
+                                       (send res :data 0))
+                                     (when (null *goal-mode*)
+                                       (ros::ros-info "goal -> avoid")
+                                       (send res :data 1))
+                                     ))
+                                  (9 ;; include goal?
+                                   (progn
+                                     (setq *include-goal* (null *include-goal*))
+                                     (when *include-goal*
+                                       (ros::ros-info "include goal")
+                                       (send res :data 0))
+                                     (when (null *include-goal*)
+                                       (ros::ros-info "exclude goal")
+                                       (send res :data 1))
+                                     ))
+                                  (10 ;; debug ;; cancel-all-motion
+                                   (progn
+                                     (ros::ros-info "send robot to cancel all motions")
+                                     (send *ri* :cancel-all-motion)
+                                     (send res :data 0)
                                      ))
                                   (t ;; slider
                                    (let ((diff (- (/ (send req :data) 100) *current-frame*)))
@@ -141,6 +164,16 @@
   (ros::ros-info "waiting button")
   (do-until-key
    (ros::spin-once)
+   (send *ri* :state)
+   (let ((mtrq
+          (apply
+           #'max (mapcar
+                  #'(lambda (j) (/ (abs (send j :joint-torque))
+                                   (send j :max-joint-torque)))
+                  (flatten (send *ri* :robot :arms :joint-list))))))
+     (when (> mtrq 0.8)
+       (ros::ros-info "TORQUE INTERRUPT ~A" mtrq)
+       (stop)))
    (ros::sleep)))
 
 (defun send-joint_traj_feedback (msg)
@@ -218,7 +251,9 @@
   (let (ret-goal diff-tms last-time)
 ;;    (setq ret-goal (apply-joint_traj_goal *last-goal*))
     (send *pr2* :angle-vector (send *ri* :state :potentio-vector))
-    (setq ret-goal (time_from_start->tms (append (traj_goal->avs *last-goal* *pr2*) *modified*)))
+    (if *include-goal*
+        (setq *modified* (append (traj_goal->avs *last-goal* *pr2*) *modified*)))
+    (setq ret-goal (time_from_start->tms *modified*))
     (ros::ros-info "publish: ~A" ret-goal)
     (ros::publish "/modify_avs" (eus->ros ret-goal :id *last-goal-id*))
     (setq *time-from-starts* nil *current-frame* 0)
@@ -295,6 +330,7 @@
 (defun main ()
   (ros::rate 10)
   (ros::advertise "/modify_avs" local_pr2_demo::AngleVectorSequence)
+  (ros::advertise "/Tablet/voice" jsk_gui_msgs::VoiceMessage)
   (ros::subscribe "/vestax_spin2/joy" sensor_msgs::Joy #'joy-cb)
   (subscribe-joints)
   (pr2-init)
